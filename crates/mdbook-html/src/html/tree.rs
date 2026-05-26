@@ -583,12 +583,14 @@ where
                 let mut img = Element::new("img");
                 let src = fix_link(dest_url).into_tendril();
                 img.insert_attr("src", src);
-                if !title.is_empty() {
-                    img.insert_attr("title", title.into_tendril());
-                }
                 // This will eat TagEnd::Image
                 let alt = self.text_for_img_alt();
-                img.insert_attr("alt", alt.into());
+                img.insert_attr("alt", alt.to_tendril());
+                if !title.is_empty() {
+                    img.insert_attr("title", title.into_tendril());
+                } else {
+                    img.insert_attr("title", alt.into());
+                }
                 self.append(Node::Element(img.clone()));
 
                 let mut wrapper = Element::new("span");
