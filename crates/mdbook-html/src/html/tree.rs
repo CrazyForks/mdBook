@@ -199,8 +199,6 @@ pub(crate) struct MarkdownTreeBuilder<'opts, 'event, EventIter> {
     /// tag. After the document has been parsed, all the definitions are moved
     /// to the end of the document.
     footnote_defs: HashMap<CowStr<'event>, NodeId>,
-    /// Current ID to be used to generate the images label and checkbox.
-    img_label_id: usize,
 }
 
 impl<'opts, 'event, EventIter> MarkdownTreeBuilder<'opts, 'event, EventIter>
@@ -224,20 +222,12 @@ where
             table_cell_index: 0,
             footnote_numbers: HashMap::new(),
             footnote_defs: HashMap::new(),
-            img_label_id: 0,
         };
         builder.process_events();
         builder.add_header_links();
         builder.update_code_blocks();
         builder.convert_fontawesome();
         builder.tree
-    }
-
-    /// Returns the current `img_label_id` and increase its value.
-    fn get_current_img_label_id(&mut self) -> usize {
-        let ret = self.img_label_id;
-        self.img_label_id += 1;
-        ret
     }
 
     /// Append a new child to the current node.
@@ -570,14 +560,12 @@ where
                 let mut img = Element::new("img");
                 let src = fix_link(dest_url).into_tendril();
                 img.insert_attr("src", src);
+                if !title.is_empty() {
+                    img.insert_attr("title", title.into_tendril());
+                }
                 // This will eat TagEnd::Image
                 let alt = self.text_for_img_alt();
                 img.insert_attr("alt", alt.to_tendril());
-                if !title.is_empty() {
-                    img.insert_attr("title", title.into_tendril());
-                } else {
-                    img.insert_attr("title", alt.into());
-                }
 
                 // If the image is not being rendered inside a link, we can enable the "zoom-in"
                 // feature.
@@ -591,18 +579,14 @@ where
                     })
                     .any(|el| *el.name.local == *"a")
                 {
-                    let img_input_id = format!("checkbox-img-{}", self.get_current_img_label_id());
+                    let mut label = Element::new("label");
+                    label.insert_attr("class", "checkbox-label".to_tendril());
+                    self.push(Node::Element(label));
 
                     let mut input = Element::new("input");
-                    input.insert_attr("id", img_input_id.to_tendril());
                     input.insert_attr("class", "checkbox-img".to_tendril());
                     input.insert_attr("type", "checkbox".to_tendril());
                     self.append(Node::Element(input));
-
-                    let mut label = Element::new("label");
-                    label.insert_attr("class", "checkbox-label".to_tendril());
-                    label.insert_attr("for", img_input_id.to_tendril());
-                    self.push(Node::Element(label));
 
                     self.append(Node::Element(img.clone()));
 
@@ -612,7 +596,7 @@ where
 
                     self.append(Node::Element(img));
 
-                    // We exit the `label` and the `div`.
+                    // We exit the `label` and the `span` (which used push_no_stack).
                     self.pop();
                 } else {
                     self.append(Node::Element(img));
